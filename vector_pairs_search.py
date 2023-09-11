@@ -1,46 +1,61 @@
-import os
-import re
+import os   # for file path iteration and manipulation
+import re   # for matching regular expressions patterns in file names
 
 
-def create_rm_charge_dict(path: str) -> dict:
-    '''
-    Collects all state names and respective RM U(1) charges into states_rm_dict.
-    Keys are the state identifiers. Values are lists of charges as integers.
-    '''
-    return_dict = {}
-    with open(path + r"rm.u1.all", "r") as rmu1_readfile:
-        curr_file_lines = rmu1_readfile.readlines()
+def create_rm_charge_dictionary(
+        directory_path: str,
+        file_stem: str
+) -> dict:
+    """Collects all state names and respective RM U(1) charges into a
+        dictionary.
 
-        for line in curr_file_lines:
-            line_split = line.split("\t\t ")
+    Args:
+        file_path (str): The path to the file containing RM U(1) charges.
 
-            curr_state_name = line_split[0]
+    Returns:
+        dict: A dictionary where keys are the state identifiers and values 
+                are lists of charges as integers.
+    """
+    charge_dict = {}
+    file_path = os.path.join(directory_path, file_stem, "rm.u1.all")
+    with open(file_path, 'r', encoding="utf-8") as rmu1_readfile:
+        lines = rmu1_readfile.readlines()
+
+        for line in lines:
+            line_split = line.split('\t\t ')
+
+            state_name = line_split[0]
             curr_state_rm = line_split[1].strip()
 
-            curr_state_rm_split = curr_state_rm.split("\t ")
-            curr_state_rm_charges = tuple([int(x) for x in curr_state_rm_split])
+            curr_state_rm_split = curr_state_rm.split('\t ')
+            curr_state_rm_charges = tuple(int(x) for x in curr_state_rm_split)
 
-            return_dict[curr_state_name] = curr_state_rm_charges
-    
-    return return_dict
+            charge_dict[state_name] = curr_state_rm_charges
+
+    return charge_dict
 
 
-def create_na_reps_dict(path: str) -> dict:
-    '''
-    Collects all the state names and respective NA representations into a dictionary.
+def create_na_reps_dictionary(path: str) -> dict:
+    """Collects all the state names and respective NA representations into a dictionary.
     Keys are state identifiers. Values are ints symbolizing the dimensions of the representations.
-    '''
-    return_dict = {}
-    with open(path + r"rm.na.all", "r") as rmna_readfile:
-        curr_file_lines = rmna_readfile.readlines()
 
-        for line in curr_file_lines:
-            line_split = line.split("\t\t")
+    Args:
+        path (str): Description here.
 
-            curr_state_name = line_split[0]
+    Returns:
+        dict: Description here.
+    """
+    charge_dict = {}
+    with open(path + r'rm.na.all', 'r') as rmna_readfile:
+        lines = rmna_readfile.readlines()
+
+        for line in lines:
+            line_split = line.split('\t\t')
+
+            state_name = line_split[0]
             curr_state_na = []
             valid_reps = True
-            for x in line_split[1].split(" \t")[:-1]:
+            for x in line_split[1].split(' \t')[:-1]:
                 try:
                     x = int(x.strip())
                 except ValueError:
@@ -54,15 +69,21 @@ def create_na_reps_dict(path: str) -> dict:
                 else:
                     curr_state_na.append(x)
             if valid_reps:
-                return_dict[curr_state_name] = curr_state_na
+                charge_dict[state_name] = curr_state_na
 
-    return return_dict
+    return charge_dict
+
 
 def create_reverse_rm_dict(rm_dict: dict) -> dict:
-    '''
-    Inverts the states_rm_dict dictionary, and consolidates  states' names
+    """Inverts the states_rm_dict dictionary, and consolidates  states' names
     Keys are the RM U(1) charges ; values are lists of all state names matching those charges
-    '''
+
+    Args:
+        rm_dict (dict): Description here.
+
+    Returns:
+        dict: Description here.
+    """
     inverse_dict = {}
     for key, value in rm_dict.items():
         inverse_dict.setdefault(value, []).append(key)
@@ -71,8 +92,8 @@ def create_reverse_rm_dict(rm_dict: dict) -> dict:
 
 
 def extract_tower_name(item: str, directory: str):
-    input_file_pattern = r"2Ms[0-9]+\.EL[0-9]\.ER[0-9]\.[lr]m\.[un][1a]\.all"
-    tower_name_pattern = r"2Ms[0-9]+\.EL[0-9]\.ER[0-9]\."
+    input_file_pattern = r'2Ms[0-9]+\.EL[0-9]\.ER[0-9]\.[lr]m\.[un][1a]\.all'
+    tower_name_pattern = r'2Ms[0-9]+\.EL[0-9]\.ER[0-9]\.'
 
     item_path = os.path.join(directory, item)
     if not os.path.isfile(item_path):
@@ -95,8 +116,8 @@ def identify_vector_pairs(directory: str):
             continue
         prev_tower_name = tower_name
 
-        rm_charge_dict = create_rm_charge_dict(directory + tower_name)
-        na_reps_dict = create_na_reps_dict(directory + tower_name)
+        rm_charge_dict = create_rm_charge_dictionary(directory, tower_name)
+        na_reps_dict = create_na_reps_dictionary(directory, tower_name)
 
         # initialize variables and objects related to paired and unpaired states
         vector_pair_dict = {}
@@ -128,22 +149,22 @@ def identify_vector_pairs(directory: str):
                 num_paired_states += 1
 
         # writes the vector pairs to their respective output file
-        with open(directory + tower_name + r"vector_pairs.txt", "w") as write_file:
+        with open(directory + tower_name + r'vector_pairs.txt', 'w') as write_file:
             for state, pairs in vector_pair_dict.items():
-                write_file.write(f"{state}:")
+                write_file.write(f'{state}:')
                 for pair in pairs:
-                    write_file.write(f"{pair} ")
+                    write_file.write(f'{pair} ')
                 write_file.write('\n')
-            write_file.write(f"\nTotal number of pairs: {total_pairs}")
-            write_file.write(f"\nNumber of paired states: {num_paired_states}")
+            write_file.write(f'\nTotal number of pairs: {total_pairs}')
+            write_file.write(f'\nNumber of paired states: {num_paired_states}')
 
         # writes the unpaired vectors to their respective output file
-        with open(directory + tower_name + r"up_vectors.txt", "w") as write_file:
+        with open(directory + tower_name + r'up_vectors.txt', 'w') as write_file:
             for state in unpaired_vectors:
-                write_file.write(f"{state}\n")
-            write_file.write(f"\nTotal number of unpaired states: {len(unpaired_vectors)}")
+                write_file.write(f'{state}\n')
+            write_file.write(f'\nTotal number of unpaired states: {len(unpaired_vectors)}')
 
 
-if __name__ == "__main__":
-    directory = r".\\path-to-directory\\"
+if __name__ == '__main__':
+    directory = r'.\\path-to-directory\\'
     identify_vector_pairs(directory)
