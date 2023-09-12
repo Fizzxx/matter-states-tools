@@ -1,0 +1,6 @@
+Metadata-Version: 2.1
+Name: matter-states-tools
+Version: 0.1
+Summary: tools used to process matter states and relevant data from EUCOS projects
+Author: Kameron Scott
+Requires-Python: >=3.7.0

@@ -1,0 +1,11 @@
+README.md
+setup.cfg
+setup.py
+src/matter-states-tools/__init__.py
+src/matter-states-tools/identify_S-sector_pairs.py
+src/matter-states-tools/misc_parsing_tools.py
+src/matter-states-tools/vector_pairs_search.py
+src/matter_states_tools.egg-info/PKG-INFO
+src/matter_states_tools.egg-info/SOURCES.txt
+src/matter_states_tools.egg-info/dependency_links.txt
+src/matter_states_tools.egg-info/top_level.txt

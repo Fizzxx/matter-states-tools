@@ -1,4 +1,4 @@
-import misc_parsing_tools as mpt
+from . import misc_parsing_tools as mpt
 
 
 def group_vp_by_sector():
