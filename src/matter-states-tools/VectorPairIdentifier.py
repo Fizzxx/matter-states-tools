@@ -32,15 +32,11 @@ class VectorPairIdentifier():
             lines = rmu1_readfile.readlines()
 
             for line in lines:
-                line_split = line.split('\t\t ')
-
-                state_name = line_split[0]
-                curr_state_rm = line_split[1].strip()
-
-                curr_state_rm_split = curr_state_rm.split('\t ')
-                curr_state_rm_charges = tuple(int(x) for x in curr_state_rm_split)
-
-                self.rm_charge_dict[state_name] = curr_state_rm_charges
+                state_name = re.search(r'[A-Za-z0-9]+', line).group()
+                found_charges = re.findall(r'\s+(-?\d+)', line)
+                state_rm_charges = tuple(map(int, found_charges))
+                self.rm_charge_dict[state_name] = state_rm_charges
+                
         self.create_reverse_rm_dict()
 
     def create_na_reps_dictionary(self, file_stem: str):
@@ -58,26 +54,17 @@ class VectorPairIdentifier():
             lines = rmna_readfile.readlines()
 
             for line in lines:
-                line_split = line.split('\t\t')
+                state_name = re.search(r'[A-Za-z0-9]+', line).group()
+                found_rep_dimensions = re.findall(r'\s+(-?\d+)', line)
+                state_na_reps = list(map(int, found_rep_dimensions))
 
-                state_name = line_split[0]
-                curr_state_na = []
-                valid_reps = True
-                for x in line_split[1].split(' \t')[:-1]:
-                    try:
-                        x = int(x.strip())
-                    except ValueError:
-                        valid_reps = False
-                        break
-
-                    # If a rep dimension is a multiple of 3,
-                    #   it's barred rep is treated as equivalent.
-                    if x % 3 == 0 and x < 0:
-                        curr_state_na.append(-1 * x)
+                for i, r in enumerate(state_na_reps):
+                    if r % 3 == 0 and r < 0:
+                        state_na_reps[i] = -1 * r
                     else:
-                        curr_state_na.append(x)
-                if valid_reps:
-                    self.na_reps_dict[state_name] = curr_state_na
+                        state_na_reps[i] = r
+                
+                self.na_reps_dict[state_name] = tuple(state_na_reps)
 
     def create_reverse_rm_dict(self):
         """Inverts the states_rm_dict dictionary, and aggregates states' names.
