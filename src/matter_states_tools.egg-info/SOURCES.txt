@@ -1,10 +1,13 @@
 README.md
 setup.cfg
 setup.py
-src/matter-states-tools/__init__.py
-src/matter-states-tools/identify_S-sector_pairs.py
-src/matter-states-tools/misc_parsing_tools.py
-src/matter-states-tools/vector_pairs_search.py
+src/matter_states_tools/MatterStatesData.py
+src/matter_states_tools/StateComposer.py
+src/matter_states_tools/VEVIdentifier.py
+src/matter_states_tools/VectorPairIdentifier.py
+src/matter_states_tools/__init__.py
+src/matter_states_tools/identify_S-sector_pairs.py
+src/matter_states_tools/misc_parsing_tools.py
 src/matter_states_tools.egg-info/PKG-INFO
 src/matter_states_tools.egg-info/SOURCES.txt
 src/matter_states_tools.egg-info/dependency_links.txt
