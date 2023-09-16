@@ -1,123 +1,43 @@
 import os   # for file path iteration and manipulation
 import re   # for matching regular expressions patterns in file names
 
+from matter_states_tools.MatterStatesData import MatterStatesData
+
 
 class VectorPairIdentifier():
     """A class that contains all the data and methods necessary to identify vector pairs and unpaired vectors. Processes all files in a directory, and writes output to files in the same directory.
     """
-    def __init__(self, directory_path: str = None):
-        self.directory_path = directory_path
-        self.rm_charge_dict = {}
-        self.na_reps_dict = {}
+    def __init__(
+            self, 
+            data: MatterStatesData, 
+            identify: bool = True, 
+            write: bool = False
+    ):
+        self.data = data
+        self.directory_path = data.directory
         self.inverse_rm_dict = {}
         self.vector_pair_dict = {}
+        self.unpaired_vectors = []
         self.total_pairs = 0
         self.num_paired_states = 0
-        self.unpaired_vectors = []
 
-    def create_rm_charge_dictionary(self, file_stem: str):
-        """Collects all state names and respective RM U(1) charges into a dictionary.
-
-        Args:
-            file_stem (str): The path stem of the filename, which identifies the tower. (e.g. '2Ms1.EL0.ER1.')
-
-        Returns:
-            dict: A dictionary where keys are the state identifiers and values 
-                    are lists of charges as integers.
-        """
-        self.rm_charge_dict = {}
-
-        file_path = os.path.join(self.directory_path, file_stem) + "rm.u1.all"
-        with open(file_path, 'r', encoding="utf-8") as rmu1_readfile:
-            lines = rmu1_readfile.readlines()
-
-            for line in lines:
-                state_name = re.search(r'[A-Za-z0-9]+', line).group()
-                found_charges = re.findall(r'\s+(-?\d+)', line)
-                state_rm_charges = tuple(map(int, found_charges))
-                self.rm_charge_dict[state_name] = state_rm_charges
-                
-        self.create_reverse_rm_dict()
-
-    def create_na_reps_dictionary(self, file_stem: str):
-        """Collects all the state names and respective NA representations into a dictionary.
-
-        Args:
-            file_stem (str): The path stem of the filename, which identifies the tower. (e.g. '2Ms1.EL0.ER1.')
-
-        Returns:
-            dict: A dictionary where keys are the state identifiers and values are single lists of reps as integers.
-        """
-        self.na_reps_dict = {}
-        file_path = os.path.join(self.directory_path, file_stem) + "rm.na.all"
-        with open(file_path, 'r', encoding="utf-8") as rmna_readfile:
-            lines = rmna_readfile.readlines()
-
-            for line in lines:
-                state_name = re.search(r'[A-Za-z0-9]+', line).group()
-                found_rep_dimensions = re.findall(r'\s+(-?\d+)', line)
-                state_na_reps = list(map(int, found_rep_dimensions))
-
-                for i, r in enumerate(state_na_reps):
-                    if r % 3 == 0 and r < 0:
-                        state_na_reps[i] = -1 * r
-                    else:
-                        state_na_reps[i] = r
-                
-                self.na_reps_dict[state_name] = tuple(state_na_reps)
+        if identify:
+            self.create_reverse_rm_dict()
+            self.identify_vector_pairs()
+        if write:
+            self.write_files()
 
     def create_reverse_rm_dict(self):
         """Inverts the states_rm_dict dictionary, and aggregates states' names.
         """
         self.inverse_rm_dict = {}
-        for key, value in self.rm_charge_dict.items():
+        for key, value in self.data.rm_charges.items():
             self.inverse_rm_dict.setdefault(value, []).append(key)
 
-    @staticmethod
-    def extract_tower_name(file_name: str):
-        """Reads an input file name, and identifies the descriptor for the tower it belongs to.
-
-        Args:
-            file_name (str): The name of the file
-
-        Returns:
-            str: the stem of the file name which identifies the tower.
-        """
-        input_file_pattern = r'2Ms[0-9]+\.EL[0-9]\.ER[0-9]\.[lr]m\.[un][1a]\.all'
-        tower_name_pattern = r'2Ms[0-9]+\.EL[0-9]\.ER[0-9]\.'
-
-        if not re.match(input_file_pattern, file_name):
-            return None
-
-        return re.search(tower_name_pattern, file_name).group()
-
-    def build_pair_dictionaries(self):
+    def identify_vector_pairs(self):
         """Identifies all state pairs that have RM U(1) charges that are additive inverses,and that have matching NA reps. Also identifies states that have no pairs. Total pairs and number of paired states are counted.
-
-        Args:
-            rm_charges (dict): A dictionary where keys are the state identifiers and values 
-                                are lists of charges as integers.
-            na_reps (dict): A dictionary where keys are the state identifiers and values are 
-                                lists of reps as integers.
-            inverse_rm (dict): The inverted dictionary, where keys are the RM U(1) charges 
-                                and values are lists of all state names matching those charges.
-
-        Returns:
-            tuple: A tuple containing the following:
-                dict: A dictionary where keys are the state identifiers and values are lists 
-                        of state names that are paired with the key state.
-                int: The total number of pairs identified.
-                int: The number of states that have pairs.
-                list: A list of state names that have no pairs.
         """
-        # resets counts to avoid double counting
-        self.total_pairs = 0
-        self.num_paired_states = 0
-        self.vector_pair_dict = {}
-        self.unpaired_vectors = []
-
-
-        for state_name, rm_charges in self.rm_charge_dict.items():
+        for state_name, rm_charges in self.data.rm_charges.items():
             # Create the target inverse values
             inverse_values = tuple([-1 * c for c in rm_charges])
             # Retrieve all state names that match the inverse values
@@ -125,7 +45,7 @@ class VectorPairIdentifier():
 
             match_found = False
             for pair_state_name in matching_states:
-                if self.na_reps_dict[state_name] == self.na_reps_dict[pair_state_name]:
+                if self.data.na_reps[state_name] == self.data.na_reps[pair_state_name]:
                     match_found = True
                     self.total_pairs += 1
                     self.vector_pair_dict.setdefault(state_name, []).append(pair_state_name)
@@ -135,32 +55,11 @@ class VectorPairIdentifier():
             else:
                 self.num_paired_states += 1
 
-    def identify_vector_pairs(self):
-        """Takes a directory containing matter state output files, and identifies all state pairs and any states that are unpaired. Output is written to a file in the same directory.
-
-        Args:
-            directory (str): The path to the directory containing the matter state output files.
+    def write_files(self):
+        """Writes the vector pairs and unpaired vectors to their respective output files.
         """
-        prev_tower_name = ''
-
-        for item in os.listdir(self.directory_path):
-            if not os.path.isfile(os.path.join(self.directory_path, item)):
-                continue
-
-            tower_name = self.extract_tower_name(item)
-
-            # We only want to process each tower once
-            if not tower_name or tower_name == prev_tower_name:
-                continue
-            prev_tower_name = tower_name
-
-            self.create_rm_charge_dictionary(tower_name)
-            self.create_na_reps_dictionary(tower_name)
-
-            self.build_pair_dictionaries()
-
-            self.write_vector_pairs_file(tower_name)
-            self.write_unpaired_vectors_file(tower_name)
+        self.write_vector_pairs_file(self.data.tower_name)
+        self.write_unpaired_vectors_file(self.data.tower_name)
 
     def write_vector_pairs_file(self, tower_name: str):
         """Writes the vector pairs to their respective output file.
@@ -168,7 +67,7 @@ class VectorPairIdentifier():
         Args:
             tower_name (str): The name of the tower (e.g. '2Ms1.EL0.ER1.')
         """
-        file_path = os.path.join(self.directory_path, tower_name) + "vector_pairs.txt"
+        file_path = os.path.join(self.directory_path, self.data.tower_name) + "vector_pairs.txt"
         with open(file_path, 'w') as write_file:
             for state, pairs in self.vector_pair_dict.items():
                 write_file.write(f'{state}:')
