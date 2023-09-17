@@ -15,8 +15,8 @@ class VectorPairIdentifier():
     ):
         self.data = data
         self.directory_path = data.directory
-        self.inverse_rm_dict = {}
-        self.vector_pair_dict = {}
+        self.inverse_rms = {}
+        self.vector_pairs = {}
         self.unpaired_vectors = []
         self.total_pairs = 0
         self.num_paired_states = 0
@@ -32,7 +32,7 @@ class VectorPairIdentifier():
         """
         self.inverse_rm_dict = {}
         for key, value in self.data.rm_charges.items():
-            self.inverse_rm_dict.setdefault(value, []).append(key)
+            self.inverse_rms.setdefault(value, []).append(key)
 
     def identify_vector_pairs(self):
         """Identifies all state pairs that have RM U(1) charges that are additive inverses,and that have matching NA reps. Also identifies states that have no pairs. Total pairs and number of paired states are counted.
@@ -41,14 +41,14 @@ class VectorPairIdentifier():
             # Create the target inverse values
             inverse_values = tuple([-1 * c for c in rm_charges])
             # Retrieve all state names that match the inverse values
-            matching_states = self.inverse_rm_dict.get(inverse_values, [])
+            matching_states = self.inverse_rms.get(inverse_values, [])
 
             match_found = False
             for pair_state_name in matching_states:
                 if self.data.na_reps[state_name] == self.data.na_reps[pair_state_name]:
                     match_found = True
                     self.total_pairs += 1
-                    self.vector_pair_dict.setdefault(state_name, []).append(pair_state_name)
+                    self.vector_pairs.setdefault(state_name, []).append(pair_state_name)
 
             if not match_found:
                 self.unpaired_vectors.append(state_name)
@@ -69,7 +69,7 @@ class VectorPairIdentifier():
         """
         file_path = os.path.join(self.directory_path, self.data.tower_name) + "vector_pairs.txt"
         with open(file_path, 'w') as write_file:
-            for state, pairs in self.vector_pair_dict.items():
+            for state, pairs in self.vector_pairs.items():
                 write_file.write(f'{state}:')
                 for pair in pairs:
                     write_file.write(f'{pair} ')

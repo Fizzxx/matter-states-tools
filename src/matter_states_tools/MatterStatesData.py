@@ -1,8 +1,5 @@
 import os
 import re
-import threading
-import multiprocessing
-from functools import partial
 
 
 class MatterStatesData():
@@ -22,8 +19,8 @@ class MatterStatesData():
         self.sectors = {}
 
         if load:
-            self.load_all()
             self.tower_name = self.identify_tower()
+            self.load_all()
 
     def find_file(self, file_class: str):
         """Finds the file of the given class in the directory.
@@ -47,44 +44,15 @@ class MatterStatesData():
             if tower_name:
                 return tower_name.group()
 
-    @staticmethod
-    def wrapper_method(func):
-        return func()
-
     def load_all(self):
         """Loads all of the data from the files into their respective dictionaries.
         """
-        shared_lms = multiprocessing.Manager().dict()
-        shared_rms = multiprocessing.Manager().dict()
-        shared_nas = multiprocessing.Manager().dict()
-        shared_states = multiprocessing.Manager().dict()
-        shared_sectors = multiprocessing.Manager().dict()
-        functions = [
-            partial(self.load_lms, shared_lms),
-            partial(self.load_rms, shared_rms),
-            partial(self.load_nas, shared_nas),
-            partial(
-                self.load_statesxAlphas, 
-                shared_states, shared_sectors
-            )
-        ]
-        num_processes = multiprocessing.cpu_count()
-        with multiprocessing.Pool(num_processes) as pool:
-            pool.map(self.wrapper_method, functions)
-        pool.close()
-        pool.join()
+        self.load_lms()
+        self.load_rms()
+        self.load_nas()
+        self.load_statesxAlphas()
 
-        self.lm_charges = dict(shared_lms)
-        self.rm_charges = dict(shared_rms)
-        self.na_reps = dict(shared_nas)
-        self.states = dict(shared_states)
-        self.sectors = dict(shared_sectors)
-        # self.load_lms()
-        # self.load_rms()
-        # self.load_nas()
-        # self.load_statesxAlphas()
-
-    def load_lms(self, shared_dict: dict = None) -> bool:
+    def load_lms(self) -> bool:
         """Loads the LM data from the file into its respective dictionary.
         """
         if self.dc_format:
@@ -115,13 +83,10 @@ class MatterStatesData():
                     except IndexError:
                         pass
 
-                if shared_dict is not None:
-                    shared_dict[state_name] = tuple(lm_charges)
-                else:
-                    self.lm_charges[state_name] = tuple(lm_charges)
+                self.lm_charges[state_name] = tuple(lm_charges)
         return True
 
-    def load_rms(self, shared_dict: dict = None) -> bool:
+    def load_rms(self) -> bool:
         """Loads the RM data from the file into the respective dictionary.
         """
         if self.dc_format:
@@ -147,13 +112,10 @@ class MatterStatesData():
                     print(len(rm_charges))
                     continue
 
-                if shared_dict is not None:
-                    shared_dict[state_name] = rm_charges
-                else:
-                    self.rm_charges[state_name] = rm_charges
+                self.rm_charges[state_name] = rm_charges
         return True
 
-    def load_nas(self, shared_dict: dict = None) -> bool:
+    def load_nas(self) -> bool:
         """Loads the NA data from the file into the respective dictionary.
         """
         if self.dc_format:
@@ -188,17 +150,10 @@ class MatterStatesData():
                     reps[3] = temp[2]
                     reps[4] = temp[0]
 
-                if shared_dict is not None:
-                    shared_dict[state_name] = tuple(reps)
-                else:
-                    self.na_reps[state_name] = tuple(reps)
+                self.na_reps[state_name] = tuple(reps)
         return True
 
-    def load_statesxAlphas(
-            self,
-            shared_states: dict = None,
-            shared_sectors: dict = None
-    ) -> bool:
+    def load_statesxAlphas(self) -> bool:
         """Loads the states from the file into the respective dictionary.
         """
         name_pattern = r'State\s+\((\w+)\)'
@@ -223,14 +178,8 @@ class MatterStatesData():
                 charges = re.findall(state_pattern, line)
                 charges = tuple(map(int, charges))
                 if is_alpha:
-                    if shared_sectors is not None:
-                        shared_sectors[state_name] = charges
-                    else:
-                        self.sectors[state_name] = charges
+                    self.sectors[state_name] = charges
                 else:
-                    if shared_states is not None:
-                        shared_states[state_name] = charges
-                    else:
-                        self.states[state_name] = charges
+                    self.states[state_name] = charges
         return True
 
