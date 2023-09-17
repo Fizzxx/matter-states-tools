@@ -1,12 +1,15 @@
 import os
 import re
+import threading
+import multiprocessing
+from functools import partial
 
 
 class MatterStatesData():
     def __init__(
-            self, 
-            directory: str, 
-            dc_format: bool = False, 
+            self,
+            directory: str,
+            dc_format: bool = False,
             load: bool = True
     ):
         self.directory = directory
@@ -15,7 +18,8 @@ class MatterStatesData():
         self.na_reps = {}
         self.dc_format = dc_format
         self.tower_name = None
-        self.states = None  # [[0]*64] * self.num_states
+        self.states = {}
+        self.sectors = {}
 
         if load:
             self.load_all()
@@ -43,14 +47,44 @@ class MatterStatesData():
             if tower_name:
                 return tower_name.group()
 
+    @staticmethod
+    def wrapper_method(func):
+        return func()
+
     def load_all(self):
         """Loads all of the data from the files into their respective dictionaries.
         """
-        self.load_lms()
-        self.load_rms()
-        self.load_nas()
+        shared_lms = multiprocessing.Manager().dict()
+        shared_rms = multiprocessing.Manager().dict()
+        shared_nas = multiprocessing.Manager().dict()
+        shared_states = multiprocessing.Manager().dict()
+        shared_sectors = multiprocessing.Manager().dict()
+        functions = [
+            partial(self.load_lms, shared_lms),
+            partial(self.load_rms, shared_rms),
+            partial(self.load_nas, shared_nas),
+            partial(
+                self.load_statesxAlphas, 
+                shared_states, shared_sectors
+            )
+        ]
+        num_processes = multiprocessing.cpu_count()
+        with multiprocessing.Pool(num_processes) as pool:
+            pool.map(self.wrapper_method, functions)
+        pool.close()
+        pool.join()
 
-    def load_lms(self):
+        self.lm_charges = dict(shared_lms)
+        self.rm_charges = dict(shared_rms)
+        self.na_reps = dict(shared_nas)
+        self.states = dict(shared_states)
+        self.sectors = dict(shared_sectors)
+        # self.load_lms()
+        # self.load_rms()
+        # self.load_nas()
+        # self.load_statesxAlphas()
+
+    def load_lms(self, shared_dict: dict = None) -> bool:
         """Loads the LM data from the file into its respective dictionary.
         """
         if self.dc_format:
@@ -61,9 +95,10 @@ class MatterStatesData():
             charge_pattern = r"\s+(-?\d\.\d{2})"
 
         file_path = self.find_file(".lm.u1.all")
+        if not file_path:
+            return False
         with open(file_path, 'r', encoding="utf-8") as lm_readfile:
-            lines = lm_readfile.readlines()
-            for line in lines:
+            for line in lm_readfile:
                 state_name = re.search(name_pattern, line)
                 if not state_name:
                     continue
@@ -80,9 +115,13 @@ class MatterStatesData():
                     except IndexError:
                         pass
 
-                self.lm_charges[state_name] = tuple(lm_charges)
+                if shared_dict is not None:
+                    shared_dict[state_name] = tuple(lm_charges)
+                else:
+                    self.lm_charges[state_name] = tuple(lm_charges)
+        return True
 
-    def load_rms(self):
+    def load_rms(self, shared_dict: dict = None) -> bool:
         """Loads the RM data from the file into the respective dictionary.
         """
         if self.dc_format:
@@ -93,10 +132,10 @@ class MatterStatesData():
             charge_pattern = r"\s+(-?\d+)"
 
         file_path = self.find_file(".rm.u1.all")
+        if not file_path:
+            return False
         with open(file_path, 'r', encoding="utf-8") as rm_readfile:
-            lines = rm_readfile.readlines()
-
-            for line in lines:
+            for line in rm_readfile:
                 state_name = re.search(name_pattern, line)
                 if not state_name:
                     continue
@@ -108,9 +147,13 @@ class MatterStatesData():
                     print(len(rm_charges))
                     continue
 
-                self.rm_charges[state_name] = rm_charges
+                if shared_dict is not None:
+                    shared_dict[state_name] = rm_charges
+                else:
+                    self.rm_charges[state_name] = rm_charges
+        return True
 
-    def load_nas(self):
+    def load_nas(self, shared_dict: dict = None) -> bool:
         """Loads the NA data from the file into the respective dictionary.
         """
         if self.dc_format:
@@ -123,9 +166,10 @@ class MatterStatesData():
             find_reps = lambda x : list(map(int, re.findall(reps_pattern, x)))
 
         file_path = self.find_file(".rm.na.all")
+        if not file_path:
+            return False
         with open(file_path, 'r', encoding="utf-8") as na_readfile:
-            lines = na_readfile.readlines()
-            for line in lines:
+            for line in na_readfile:
                 state_name = re.search(name_pattern, line)
                 if not state_name:
                     continue
@@ -144,4 +188,49 @@ class MatterStatesData():
                     reps[3] = temp[2]
                     reps[4] = temp[0]
 
-                self.na_reps[state_name] = tuple(reps)
+                if shared_dict is not None:
+                    shared_dict[state_name] = tuple(reps)
+                else:
+                    self.na_reps[state_name] = tuple(reps)
+        return True
+
+    def load_statesxAlphas(
+            self,
+            shared_states: dict = None,
+            shared_sectors: dict = None
+    ) -> bool:
+        """Loads the states from the file into the respective dictionary.
+        """
+        name_pattern = r'State\s+\((\w+)\)'
+        state_pattern = r"\s+(-?\d+)"
+        alpha_pattern = r"Alpha\s+\((\w+)\)"
+
+        file_path = self.find_file(".states.all")
+        if not file_path:
+            return False
+        with open(file_path, 'r', encoding="utf-8") as states_readfile:
+            for line in states_readfile:
+                state_name = re.search(name_pattern, line)
+                is_alpha = False
+                if not state_name:
+                    state_name = re.search(alpha_pattern, line)
+                    is_alpha = True
+                if not state_name:
+                    continue
+                
+                state_name = state_name.group(1)
+
+                charges = re.findall(state_pattern, line)
+                charges = tuple(map(int, charges))
+                if is_alpha:
+                    if shared_sectors is not None:
+                        shared_sectors[state_name] = charges
+                    else:
+                        self.sectors[state_name] = charges
+                else:
+                    if shared_states is not None:
+                        shared_states[state_name] = charges
+                    else:
+                        self.states[state_name] = charges
+        return True
+
